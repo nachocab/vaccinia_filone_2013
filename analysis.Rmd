@@ -1,0 +1,131 @@
+---
+
+```{r global_setup, echo = FALSE, cache = FALSE, warning = FALSE}
+
+    opts_chunk$set(cache = FALSE, fig.path = 'figures/', autodep = TRUE, fig.cap = "", fig.width = 8, fig.height = 8, dev = c("cairo_pdf"), echo = FALSE, warning = FALSE, message = FALSE)
+    dep_auto()
+
+```
+
+```{r setup}
+    # , , "bvenn", "RColorBrewer", "ggplot2", "MASS", "scales", "grid", "reshape2"
+
+    for (package in c("knitr", "markdown", "edgeR", "stringr")){
+        library(package, character.only = TRUE)
+    }
+
+    source("src/main.r")
+
+    # log2 fold change threshold is 1.5 (~3 fold change), average log10 normalized counts threshold is 1
+    threshold <- list(m = 1.5, a = 1)
+
+    # There are three data objects, filone represents the data set used in Filone 2013, yang_a represents the data set used in Yang 2010 (Yang, Z., Bruno, D. P., Martens, C. A., Porcella, S. F., & yang, B. (2010). Simultaneous high-resolution analysis of vaccinia virus and host cell transcriptomes by deep RNA sequencing. Proceedings of the National Academy of Sciences of the United States of America, 107(25), 11513–8. doi:10.1073/pnas.1006594107)
+    filone <- get_data_set("data/filone_counts.txt")
+    filone <- add_ma_top_genes(filone, threshold)
+
+    # a <- data.frame(gene_symbol = rownames(filone$normalized_counts))
+    # a <- cbind(a, filone$normalized_counts)
+    # a$significant_hpi_6 <- a$gene_symbol %in% filone$hpi_6$top_genes
+    # a <- a[order(a$significant_hpi_6, decreasing = TRUE),]
+    # write.csv(a, "/Users/nacho/Documents/BU/Connor/projects/cmf/misc/normalized_counts.csv", quote = FALSE, row.names = FALSE)
+
+    yang_a <- get_data_set("data/yang_a_counts.txt")
+    yang_a <- add_ma_top_genes(yang_a, threshold)
+
+    # filone_regulated <- scan("misc/filone_regulated.txt", "character")
+    # mendillo_downstream <- scan("misc/mendillo_downstream.txt", "character")
+    # hsf_motif <- scan("misc/hsf_motif.txt", "character")
+    # kampinga_hsps <- scan("misc/kampinga_hsps.txt", "character")
+
+    mendillo_hsf1_targets <- scan("misc/mendillo_hsf1_targets.txt", "character")
+
+    # filone$interesting_hsps <- na.omit(filone$hpi_6$ma[kampinga_hsps, ])
+    # filone$interesting_hsps <- filone$interesting_hsps[filone$interesting_hsps$m > 1.5,]
+
+    # yang_a$interesting_hsps <- na.omit(yang_a$hpi_4$ma[kampinga_hsps, ])
+    # yang_a$interesting_hsps <- yang_a$interesting_hsps[yang_a$interesting_hsps$m > 1.5,]
+
+    # interesting_hsps <- union(rownames(filone$interesting_hsps), rownames(yang_a$interesting_hsps))
+
+```
+
+```{r plots, fig.width=11, fig.height=11}
+
+    # plot_ma(filone$hpi_6$ma, highlight_names = filone$hpi_6$top_genes)
+    # plot_ma(filone$hpi_6$ma, highlight_names = yang_a$hpi_4$top_genes)
+
+    # plot_ma(filone$hpi_6$ma, highlight_names = intersect(filone$hpi_6$top_genes, yang_a$hpi_4$top_genes))
+    # f <- filone$hpi_6$ma[intersect(filone$hpi_6$top_genes, yang_a$hpi_4$top_genes), ]
+    # clickme(f, "zoomable_scatterplot", name_mappings = list(a="x", m = "y"))
+
+    # plot_ma(filone$hpi_6$ma, highlight_names = kampinga_hsps, names = TRUE)
+    # plot_ma(yang_a$hpi_4$ma, highlight_names = kampinga_hsps, names = TRUE)
+
+    cutoff <- list(counts = 20, fold_change = 1)
+    is_valid_gene <- list(filone = filone$normalized_counts$hpi_6 > cutoff$counts & filone$hpi_6$ma$m > cutoff$fold_change,
+                          yang_a = yang_a$normalized_counts$hpi_4 > cutoff$counts & yang_a$hpi_4$ma$m > cutoff$fold_change)
+    valid_gene_names <- list(filone = rownames(filone$normalized_counts[is_valid_gene$filone,]),
+                             yang_a = rownames(yang_a$normalized_counts[is_valid_gene$yang_a,]))
+    red <- "#CA0020"
+
+    upregulated_genes <- filone$normalized_counts[valid_gene_names$filone,]
+    upregulated_genes$log2_fold_change_6hpi <- filone$hpi_6$ma[valid_gene_names$filone, "m"]
+    upregulated_genes$log10_abundance_6hpi <- filone$hpi_6$ma[valid_gene_names$filone, "a"]
+    upregulated_genes$hsf1_target <- ifelse(valid_gene_names$filone %in% mendillo_hsf1_targets, "yes", "unknown")
+    write.table(upregulated_genes, file = "misc/upregulated_genes.csv", sep = ",", quote=FALSE, row.names=TRUE, col.names=TRUE)
+
+    plot(filone$hpi_6$ma[,c("a","m")], pch = 16, col = ifelse(is_valid_gene$filone, "black", "grey70"), xlab="log10 normalized counts", ylab="log2 fold change (at 6hpi)", family = "Arial", xlim = c(0,6), ylim = c(-3,8), xpd = FALSE)
+    points(filone$hpi_6$ma[is_valid_gene$filone,][mendillo_hsf1_targets, "a"], filone$hpi_6$ma[is_valid_gene$filone,][mendillo_hsf1_targets, "m"], col = red, pch = 16)
+    annotate_points(filone$hpi_6$ma[is_valid_gene$filone,][mendillo_hsf1_targets, "a"], filone$hpi_6$ma[is_valid_gene$filone,][mendillo_hsf1_targets, "m"], mendillo_hsf1_targets, col= red, pos = 4)
+    legend("topright", c("Upregulated", "HSF1 target") , pch = 16, col = c("black", red), cex = 1.5)
+
+    plot(yang_a$hpi_4$ma[,c("a","m")], pch = 16, col = ifelse(is_valid_gene$yang_a, "black", "grey70"), xlab="log10 normalized counts", ylab="log2 fold change (at 6hpi)", family = "Arial", xlim = c(0,6), ylim = c(-3,8), xpd = FALSE)
+    points(yang_a$hpi_4$ma[is_valid_gene$yang_a,][mendillo_hsf1_targets, "a"], yang_a$hpi_4$ma[is_valid_gene$yang_a,][mendillo_hsf1_targets, "m"], col = red, pch = 16)
+    annotate_points(yang_a$hpi_4$ma[is_valid_gene$yang_a,][mendillo_hsf1_targets, "a"], yang_a$hpi_4$ma[is_valid_gene$yang_a,][mendillo_hsf1_targets, "m"], mendillo_hsf1_targets, col= red, pos = 4)
+    legend("topright", c("Upregulated", "HSF1 target") , pch = 16, col = c("black", red), cex = 1.5)
+
+    # plot_ma(filone$hpi_6$ma, highlight_names = mendillo_hsf1_targets, names = TRUE, pos = "rightside", family = "Arial", ylim = c(-6,8), xlim = c(0,6))
+    # plot_ma(yang_a$hpi_4$ma, highlight_names = mendillo_hsf1_targets, names = TRUE, pos = "rightside", family = "Arial", ylim = c(-6,8), xlim = c(0,6))
+
+    # plot_lines(filone$log2_fold_changes[interesting_hsps, ], col = transparent("black"), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(filone$log2_fold_changes)), ylim = c(-5,8), family = "Arial")
+    # text(5,filone$log2_fold_changes[interesting_hsps, 5], labels = interesting_hsps, col = "black", pos = 4, font = 2, xpd = NA, )
+    # plot_lines(filone$log2_fold_changes[interesting_hsps, ], col = transparent("black"), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(filone$log2_fold_changes)), ylim = c(-5,8), at_x_axis = str_to_num(colnames(filone$log2_fold_changes)), family = "Arial")
+    # text(18,filone$log2_fold_changes[interesting_hsps, 5], labels = interesting_hsps, col = "black", pos = 4, font = 2, xpd = NA, )
+
+    # plot_lines(filone$log2_fold_changes[interesting_hsps, -5], col = transparent("black"), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(filone$log2_fold_changes[, -5])), ylim = c(-5,8), family = "Arial")
+    # text(4,filone$log2_fold_changes[interesting_hsps, 4], labels = interesting_hsps, col = "black", pos = 4, font = 2, xpd = NA, )
+    df_filone <- bring_to_front(filone$log2_fold_changes[valid_gene_names$filone, ], mendillo_hsf1_targets[mendillo_hsf1_targets %in% valid_gene_names$filone])
+    plot_lines(df_filone[, -5], col = ifelse(rownames(df_filone) %in% mendillo_hsf1_targets, transparent(red), transparent("black")), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(filone$log2_fold_changes[, -5])), at_x_axis = str_to_num(colnames(filone$log2_fold_changes[, -5])), family = "Arial", ylim = c(-3,8))
+    text(6,filone$log2_fold_changes[valid_gene_names$filone, ][mendillo_hsf1_targets, 4], labels = mendillo_hsf1_targets, col = red, pos = 4, font = 2, xpd = NA, cex = 1.2)
+
+    # plot_lines(df_filone[, -5], col = ifelse(rownames(df_filone) %in% mendillo_hsf1_targets, transparent(red), transparent("black")), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(filone$log2_fold_changes[, -5])), at_x_axis = str_to_num(colnames(filone$log2_fold_changes[, -5])), family = "Arial", ylim = c(-3,8))
+    # text(6, filone$log2_fold_changes[valid_gene_names$filone, 4], labels = rownames(filone$log2_fold_changes[valid_gene_names$filone, ]), col = "red", pos = 4, font = 2, xpd = NA)
+    # text(6, filone$log2_fold_changes[valid_gene_names$filone, ][mendillo_hsf1_targets, 4], labels = mendillo_hsf1_targets, col = red, pos = 4, font = 2, xpd = NA)
+
+    # plot_lines(yang_a$log2_fold_changes[interesting_hsps, ], col = transparent("black"), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(yang_a$log2_fold_changes)), ylim = c(-5,8), family = "Arial")
+    # text(5,yang_a$log2_fold_changes[interesting_hsps, 5], labels = interesting_hsps, col = "black", pos = 4, font = 2, xpd = NA, )
+    # plot_lines(yang_a$log2_fold_changes[interesting_hsps, ], col = transparent("black"), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(yang_a$log2_fold_changes)), ylim = c(-5,8), at_x_axis = str_to_num(colnames(yang_a$log2_fold_changes)), family = "Arial")
+    # text(4,yang_a$log2_fold_changes[interesting_hsps, 5], labels = interesting_hsps, col = "black", pos = 4, font = 2, xpd = NA, )
+
+    df_yang_a <- bring_to_front(yang_a$log2_fold_changes[valid_gene_names$yang_a, ], mendillo_hsf1_targets[mendillo_hsf1_targets %in% valid_gene_names$yang_a])
+    plot_lines(df_yang_a, col = ifelse(rownames(df_yang_a) %in% mendillo_hsf1_targets, transparent(red), transparent("black")), ylab = "log2 fold change (at 6hpi)", xlab="hour post-infection", col_names=str_to_num(colnames(yang_a$log2_fold_changes)), at_x_axis = str_to_num(colnames(yang_a$log2_fold_changes)), family = "Arial", ylim = c(-3,8))
+    text(4,yang_a$log2_fold_changes[valid_gene_names$yang_a, ][mendillo_hsf1_targets, 5], labels = mendillo_hsf1_targets, col = red, pos = 4, font = 2, xpd = NA, cex = 1.2)
+
+
+    # plot_ma(filone$hpi_6$ma, highlight_names = kampinga_hsps, names = TRUE)
+    # plot_ma(yang_a$hpi_4$ma, highlight_names = yang_a$hpi_4$top_genes)
+    # plot_ma(yang_a$hpi_4$ma, highlight_names = filone$hpi_6$top_genes)
+
+    # bvenn(list(filone_regulated = scan("misc/filone_regulated.txt", "character"),
+    #            kampinga_hsps = scan("misc/kampinga_hsps.txt", "character"),
+    #            hsf_motif = scan("misc/hsf_motif.txt", "character")),
+    # colors = brewer.pal(7,"Set3"), scale = 0.7)
+
+```
+
+```{r embed_fonts}
+
+    library(extrafont)
+    sapply(dir(opts_chunk$get("fig.path"), pattern="*.pdf", full.name = TRUE), embed_fonts)
+
+```
