@@ -1,6 +1,13 @@
 
 "%notin%" <- function(x,y) !(x %in% y)
 
+bring_to_front <- function(df, names) {
+    names_df <- rownames(df)
+    indeces_df <- which(names_df %in% names)
+    df <- rbind(df[-indeces_df,], df[indeces_df,])
+    df
+}
+
 get_labels <- function(x) {
     if (is.matrix(x) || is.data.frame(x)){
         if (is.null(rownames(x))){
@@ -40,10 +47,9 @@ annotate_points <- function(x, y=NULL,
     }
 }
 
-add_ma_top_genes <- function(data_set, threshold){
+add_ma <- function(data_set){
     for(timepoint in colnames(data_set$normalized_counts)[-1]){
         data_set[[timepoint]]$ma <- get_ma(data_set$normalized_counts, c("hpi_0", timepoint))
-        data_set[[timepoint]]$top_genes <- rownames(data_set[[timepoint]]$ma[data_set[[timepoint]]$ma$m > threshold$m & data_set[[timepoint]]$ma$a > threshold$a,])
     }
     data_set
 }
@@ -93,8 +99,8 @@ to_gene_symbol <- function(ensembl_ids, ensembl_info){
     gene_symbols
 }
 
-gene_symbols_as_rownames <- function(data_set){
-    ensembl_info <- readRDS("data/aux/hsa_ensembl_69.rds")
+gene_symbols_as_rownames <- function(data_set, ensembl_info_path = "data/hsa_ensembl_69.rds"){
+    ensembl_info <- readRDS(ensembl_info_path)
     candidate_rownames <- to_gene_symbol(rownames(data_set), ensembl_info)
     dups <- duplicated(candidate_rownames)
     candidate_rownames[dups] <- paste0(candidate_rownames[dups], "_dup_", 1:sum(dups))
